@@ -14,7 +14,7 @@ import json
 import warnings
 warnings.filterwarnings('ignore')
 
-from knn_features import build_features, build_target, calc_ma
+from knn_features import build_features, build_target, calc_ma, to_pandas_resample_rule
 
 # All available feature keys (used for reproducibility config and later for optional feature selection)
 FEATURE_KEYS = [
@@ -246,13 +246,19 @@ def resample_data(df, timeframe):
     df['date'] = pd.to_datetime(df['date'])
     df.set_index('date', inplace=True)
     agg = {'Open':'first','High':'max','Low':'min','Close':'last','Volume':'sum'}
-    return df.resample(timeframe).agg(agg).dropna()
+    return df.resample(to_pandas_resample_rule(timeframe)).agg(agg).dropna()
 
 # Sidebar
 st.sidebar.header("📤 Upload & Settings")
 uploaded_file = st.sidebar.file_uploader("Upload Nifty 1-min CSV", type=["csv"])
 
-timeframe = st.sidebar.selectbox("Timeframe", ["5T","15T","60T","1D"], index=0)
+timeframe = st.sidebar.selectbox(
+    "Timeframe",
+    ["5min", "15min", "60min", "1D"],
+    index=0,
+    format_func=lambda x: {"5min": "5 min", "15min": "15 min", "60min": "60 min", "1D": "Daily"}.get(x, x),
+    help="Uses pandas offset aliases (minutes = 'min', not deprecated 'T').",
+)
 
 bt_period_mode = st.sidebar.radio(
     "Backtest period",
@@ -884,7 +890,7 @@ if run_button:
             - **Parameters** and **`run_config`**: `window_size`, `momentum_window`, `long_threshold`, `short_threshold`, `filter_mode`, `feat_ma_type`, `use_pca`, `pca_n_components`, `distance_metric`, `features_used`, etc.
 
             **How to run on live market**
-            1. **Data:** Maintain a rolling buffer of OHLC bars at the **same timeframe** as backtest (e.g. 5T). Feed new candles from your broker (e.g. Fyers) as they close.
+            1. **Data:** Maintain a rolling buffer of OHLC bars at the **same timeframe** as backtest (e.g. 5min). Feed new candles from your broker (e.g. Fyers) as they close.
             2. **Features:** From the buffer, compute the same 9 features (RSI z-scores, MA deviation z-scores, etc.) using the same `window_size` and formulas. Use only the **last row** (current bar) for prediction.
             3. **Predict:** Use **`score_latest_candle.py`**: it applies the saved `use_pca` and `distance_metric` (Euclidean → `predict_proba` on raw feature row; Lorentzian → scale (+PCA) then weighted neighbors using `lorentzian_cache`). You get `prob_up` and `prob_down`.
             4. **Signal:** Apply your thresholds (`long_threshold`, `short_threshold`) and trend filter (`filter_mode`). Emit Long / Short / Flat and optionally send orders via your broker API.
