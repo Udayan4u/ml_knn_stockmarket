@@ -2,6 +2,31 @@ import numpy as np
 import pandas as pd
 
 
+def to_pandas_resample_rule(rule: str) -> str:
+    """
+    pandas >= 2.2 removed 'T' as alias for minutes; use 'min' (e.g. 5T -> 5min).
+    Accepts saved bundle strings like 5T or modern 5min.
+    """
+    if rule is None:
+        return rule
+    s = str(rule).strip()
+    legacy = {
+        "5T": "5min",
+        "15T": "15min",
+        "30T": "30min",
+        "60T": "60min",
+        "120T": "120min",
+    }
+    if s in legacy:
+        return legacy[s]
+    su = s.upper()
+    if su in legacy:
+        return legacy[su]
+    if s.upper().endswith("T") and s[:-1].isdigit():
+        return f"{s[:-1]}min"
+    return s
+
+
 def calc_ma(src: pd.Series, length: int, ma_type: str = "SMA") -> pd.Series:
     len_ = max(1, int(length))
     if ma_type == "EMA":
